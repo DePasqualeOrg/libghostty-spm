@@ -92,11 +92,17 @@
             var keyEvent = ghostty_input_key_s()
             keyEvent.action = action
             keyEvent.mods = mods.ghosttyMods
-            if case let .ghostty(ghosttyKey) = delivery {
-                keyEvent.keycode = ghosttyKey.rawValue
-            } else {
-                keyEvent.keycode = GHOSTTY_KEY_UNIDENTIFIED.rawValue
-            }
+            // Ghostty expects a platform-native keycode, which it resolves
+            // to its internal Key enum via src/input/keycodes.zig. On iOS
+            // that table uses macOS virtual keycodes (native_idx = 4), so
+            // translate HID usage → AppKit keycode here.
+            // TODO: Runtime-verify on iOS, iPadOS, and Mac Catalyst that
+            // `key.keyCode.rawValue` is genuinely a USB HID usage code at
+            // all three call sites. Apple's docs say yes, but this fix has
+            // only been validated algebraically, not on real hardware.
+            keyEvent.keycode = TerminalHardwareKeyRouter.appKitKeyCodeForUIKit(
+                usage: UInt16(key.keyCode.rawValue)
+            )
             keyEvent.composing = inputHandler.hasMarkedText
 
             var consumedFlags = filteredModifierFlags

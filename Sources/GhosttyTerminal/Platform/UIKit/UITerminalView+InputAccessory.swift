@@ -74,7 +74,9 @@
             if !additionalMods.isEmpty, let ghosttyKey = ghosttyKey(from: delivery) {
                 var event = ghostty_input_key_s()
                 event.action = GHOSTTY_ACTION_PRESS
-                event.keycode = ghosttyKey.rawValue
+                event.keycode = TerminalHardwareKeyRouter.appKitKeyCode(
+                    for: ghosttyKey
+                )
                 event.mods = additionalMods.ghosttyMods
                 _ = surface.sendKeyEvent(event)
                 return
@@ -88,7 +90,9 @@
             case let .ghostty(ghosttyKey):
                 var event = ghostty_input_key_s()
                 event.action = GHOSTTY_ACTION_PRESS
-                event.keycode = ghosttyKey.rawValue
+                event.keycode = TerminalHardwareKeyRouter.appKitKeyCode(
+                    for: ghosttyKey
+                )
                 event.mods = additionalMods.ghosttyMods
                 _ = surface.sendKeyEvent(event)
             }
@@ -172,8 +176,10 @@
                 event.action = GHOSTTY_ACTION_PRESS
                 event.mods = modifiers.ghosttyMods
                 let char = Character(UnicodeScalar(byte | 0x60))
-                let keycode = ghosttyKeyForCharacter(char)
-                event.keycode = keycode.rawValue
+                let ghosttyKey = ghosttyKeyForCharacter(char)
+                event.keycode = TerminalHardwareKeyRouter.appKitKeyCode(
+                    for: ghosttyKey
+                )
                 _ = surface.sendKeyEvent(event)
             }
         }
@@ -199,7 +205,9 @@
 
             var event = ghostty_input_key_s()
             event.action = GHOSTTY_ACTION_PRESS
-            event.keycode = mapping.key.rawValue
+            event.keycode = TerminalHardwareKeyRouter.appKitKeyCode(
+                for: mapping.key
+            )
             event.mods = modifiers.union(mapping.extraModifiers).ghosttyMods
 
             if !modifiers.contains(.super_) {

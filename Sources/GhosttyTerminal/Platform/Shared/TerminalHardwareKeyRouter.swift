@@ -107,6 +107,45 @@ enum TerminalHardwareKeyRouter {
         appKitMap[keyCode] ?? GHOSTTY_KEY_UNIDENTIFIED
     }
 
+    /// Sentinel `keycode` value for keys that have no macOS AppKit
+    /// equivalent (e.g. CUT/COPY/PASTE, media keys, CONTEXT_MENU, INSERT on
+    /// PC keyboards). Any value outside the 8-bit AppKit virtual keycode
+    /// range falls out of libghostty's native-keycode lookup and resolves
+    /// to `.unidentified`. Using plain `0` would instead collide with
+    /// AppKit's keycode for the `A` key.
+    static let unidentifiedAppKitKeyCode: UInt32 = 0xFFFF_FFFF
+
+    /// Translate a Ghostty key enum to the macOS AppKit virtual keycode
+    /// for the same physical key. This is used by synthetic UIKit key
+    /// events that already know the logical Ghostty key but still need to
+    /// satisfy libghostty's native-keycode contract.
+    static func appKitKeyCode(for ghosttyKey: ghostty_input_key_e) -> UInt32 {
+        guard let macKeyCode = ghosttyKeyToAppKitCode[ghosttyKey.rawValue]
+        else { return unidentifiedAppKitKeyCode }
+        return UInt32(macKeyCode)
+    }
+
+    /// Translate a UIKit (USB HID) usage code to the macOS AppKit virtual
+    /// keycode for the same physical key. Libghostty's keycode lookup
+    /// (`src/input/keycodes.zig`) uses macOS keycodes on both macOS and iOS
+    /// builds, so UIKit callers need to translate HID → mac before handing
+    /// the keycode to `ghostty_surface_key`. Returns
+    /// `unidentifiedAppKitKeyCode` for HID usages with no AppKit counterpart
+    /// (keys that do not exist on Mac keyboards).
+    static func appKitKeyCodeForUIKit(usage: UInt16) -> UInt32 {
+        guard let ghosttyKey = uiKitMap[usage]
+        else { return unidentifiedAppKitKeyCode }
+        return appKitKeyCode(for: ghosttyKey)
+    }
+
+    private static let ghosttyKeyToAppKitCode: [UInt32: UInt16] = {
+        var result: [UInt32: UInt16] = [:]
+        for (code, key) in appKitMap {
+            result[key.rawValue] = code
+        }
+        return result
+    }()
+
     private typealias Pair = (UInt16, ghostty_input_key_e)
 
     private static let uiKitMap = buildMap(
@@ -217,12 +256,19 @@ enum TerminalHardwareKeyRouter {
         ]
     )
 
+    // TODO: JIS keyboard entries are missing from this table:
+    //   (0x5D, GHOSTTY_KEY_INTL_YEN)   // kVK_JIS_Yen
+    //   (0x5E, GHOSTTY_KEY_INTL_RO)    // kVK_JIS_Underscore
+    // Adding them would fix JIS hardware on native macOS (pre-existing bug,
+    // not introduced by the keycode-translation fix). INTL_RO / INTL_YEN are
+    // also absent from `uiKitMap`, so the UIKit translation path is unaffected.
     private static let appKitMap = buildMap(
         literalPairs: [
             (0x00, GHOSTTY_KEY_A), (0x01, GHOSTTY_KEY_S), (0x02, GHOSTTY_KEY_D),
             (0x03, GHOSTTY_KEY_F), (0x04, GHOSTTY_KEY_H), (0x05, GHOSTTY_KEY_G),
             (0x06, GHOSTTY_KEY_Z), (0x07, GHOSTTY_KEY_X), (0x08, GHOSTTY_KEY_C),
-            (0x09, GHOSTTY_KEY_V), (0x0B, GHOSTTY_KEY_B), (0x0C, GHOSTTY_KEY_Q),
+            (0x09, GHOSTTY_KEY_V), (0x0A, GHOSTTY_KEY_INTL_BACKSLASH),
+            (0x0B, GHOSTTY_KEY_B), (0x0C, GHOSTTY_KEY_Q),
             (0x0D, GHOSTTY_KEY_W), (0x0E, GHOSTTY_KEY_E), (0x0F, GHOSTTY_KEY_R),
             (0x10, GHOSTTY_KEY_Y), (0x11, GHOSTTY_KEY_T), (0x12, GHOSTTY_KEY_DIGIT_1),
             (0x13, GHOSTTY_KEY_DIGIT_2), (0x14, GHOSTTY_KEY_DIGIT_3), (0x15, GHOSTTY_KEY_DIGIT_4),
